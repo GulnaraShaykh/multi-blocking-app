@@ -3,36 +3,28 @@ import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.BlockingQueue;
 
 public class Main {
-    // Параметры генератора текстов
-    private static final String LETTERS = "abc"; // Доступные символы для генерации текстов
-    private static final int TEXT_LENGTH = 100000; // Длина каждого текста
-    private static final int NUM_TEXTS = 10000; // Количество генерируемых текстов
-d
-    // Потокобезопасные блокирующие очереди для каждого символа
-    private static final BlockingQueue<String> queueA = new ArrayBlockingQueue<>(100); // Очередь для символа 'a'
-    private static final BlockingQueue<String> queueB = new ArrayBlockingQueue<>(100); // Очередь для символа 'b'
-    private static final BlockingQueue<String> queueC = new ArrayBlockingQueue<>(100); // Очередь для символа 'c'
 
-    public static voidd main(String[] args) {
+    private static final String LETTERS = "a,b,c";
+    private static final int TEXT_LENGTH = 10;
+    private final static int NUM_TEXTS = 100;
+
+    private static final BlockingQueue<String> queueA = new ArrayBlockingQueue<>(NUM_TEXTS);
+    private static final BlockingQueue<String> queueB = new ArrayBlockingQueue<>(NUM_TEXTS);
+    private static final BlockingQueue<String> queueC = new ArrayBlockingQueue<>(NUM_TEXTS);
+
+    public static void main(String[] args) {
         // Создание и запуск потока для генерации текстов
-        Thread textGeneratorThread = new Thread(Main::generateTexts);
+        Thread textGeneratorThread = new Thread(Main::generateText);
         textGeneratorThread.start();
 
-        // Создание и запуск по потока для каждого из трёх символов
-        Thread aCounterThread = new Thread(() -> countChar('a', queueA)); // Поток для анализа символа 'a'
-        Thread bCounterThread = new Thread(() -> countChar('b', queueB)); // Поток для анализа символа 'b'
-        Thread cCounterThread = new Thread(() -> countChar('c', queueC)); // Поток для анализа символа 'c'
-
-        aCounterThread.start(); // Запуск потока для символа 'a'
-        bCounterThread.start(); // Запуск потока для символа 'b'
-        cCounterThread.start(); // Запуск потока для символа 'c'
+        // Создание и запуск потока для анализа всех символов
+        Thread analysisThread = new Thread(Main::analyzeAllChars);
+        analysisThread.start();
 
         // Ожидание завершения всех потоков
         try {
             textGeneratorThread.join(); // Ожидание завершения потока генерации текстов
-            aCounterThread.join(); // Ожидание завершения потока анализа символа 'a'
-            bCounterThread.join(); // Ожидание завершения потока анализа символа 'b'
-            cCounterThread.join(); // Ожидание завершения потока анализа символа 'c'
+            analysisThread.join(); // Ожидание завершения потока анализа всех символов
         } catch (InterruptedException e) {
             e.printStackTrace();
         }
@@ -43,58 +35,48 @@ d
         System.out.println("Максимальное количество символов 'c' в тексте: " + queueC.size());
     }
 
-    // Метод для генерации текстов и их добавления в очереди
-    private static void generateTexts() {
+    private static void generateText() {
         Random random = new Random();
-        for (int i = 0; i < NUM_TEXTS; i++) { // Перебор по количеству текстов
+        for (int i = 0; i < TEXT_LENGTH; i++) {
             StringBuilder text = new StringBuilder();
-            for (int j = 0; j < TEXT_LENGTH; j++) { // Генерация каждого текста
-                text.append(LETTERS.charAt(random.nextInt(LETTERS.length()))); // Добавление случайного символа в текст
-            }
-            try {
-                // Добавление текста в соответствующую очередь
-                switch (text.charAt(0)) { // Определение, в какую очередь добавлять текст
-                    case 'a':
-                        queueA.put(text.toString()); // Добавление текста в очередь 'a'
-                        break;
-                    case 'b':
-                        queueB.put(text.toString()); // Добавление текста в очередь 'b'
-                        break;
-                    case 'c':
-                        queueC.put(text.toString()); // Добавление текста в очередь 'c'
-                        break;
+            for (int j = 0; j < TEXT_LENGTH; j++) {
+                text.append(LETTERS.charAt(random.nextInt(LETTERS.length())));
+
+                try {
+                    queueA.put(text.toString());
+                    queueB.put(text.toString());
+                    queueC.put(text.toString());
+                } catch (InterruptedException e) {
+                    e.printStackTrace();
                 }
-            } catch (InterruptedException e) {
-                e.printStackTrace();
             }
         }
     }
 
-    // Метод для подсчета количества символов char в очереди
-    private static void countChar(char c, BlockingQueue<String> queue) {
-        int maxCount = 0; // Максимальное количество символов char
+    private static void analyzeAllChars() {
+        analyzeChar('a', queueA);
+        analyzeChar('b', queueB);
+        analyzeChar('c', queueC);
+    }
+
+    private static void analyzeChar(char c, BlockingQueue<String> queue) {
+        int maxCount = 0;
+
         try {
-            while (!queue.isEmpty()) { // Пока очередь не пуста
-                int count = 0; // Счетчик символов char в текущей порции текстов из очереди
-                // Подсчет количества символов char в текущей порции текстов из очереди
-                while (!queue.isEmpty()) {
-                    String text = queue.take(); // Извлечение текста из очереди
-                    for (int i = 0; i < text.length(); i++) {
-                        if (text.charAt(i) == c) { // Если символ из текста равен char
-                            count++; // Увеличение счетчика
-                        }
+            while (true) { //
+                String text = queue.poll();
+                if (text == null) break;
+                int count = 0;
+                // Подсчет количества символов char в текущем тексте из очереди
+                for (int i = 0; i < text.length(); i++) {
+                    if (text.charAt(i) == c) {
+                        count++;
                     }
                 }
-                // Обновление максимального значения
+
                 maxCount = Math.max(maxCount, count);
             }
-        } catch (InterruptedException e) {
-            e.printStackTrace();
-        }
-        // Добавление максимального значения в очередь
-        try {
-            queue.put(String.valueOf(maxCount)); // Добавление значения в очередь
-        } catch (InterruptedException e) {
+        } catch (Exception e) {
             e.printStackTrace();
         }
     }
